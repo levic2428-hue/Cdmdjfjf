@@ -1,0 +1,277 @@
+
+-- ECT AND NICKOY | ADVANCED MOBILE CAMERA LOCK
+-- For your own Roblox Studio experience
+-- Place in StarterPlayer > StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local lockedTarget
+local lockEnabled = false
+local trackingStrength = 65
+local switchDelay = 0
+local SWITCH_COOLDOWN = 0.35
+local BIND_NAME = "ECTAdvancedCameraLock"
+
+local oldGui = playerGui:FindFirstChild("ECTAdvanced")
+if oldGui then oldGui:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ECTAdvanced"
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
+
+local panel = Instance.new("Frame")
+panel.Size = UDim2.fromOffset(240, 180)
+panel.Position = UDim2.new(1, -255, 0.5, -90)
+panel.BackgroundColor3 = Color3.fromRGB(25, 18, 40)
+panel.Parent = gui
+
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0, 14)
+panelCorner.Parent = panel
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "ECT AND NICKOY"
+title.TextColor3 = Color3.fromRGB(205, 160, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 17
+title.Parent = panel
+
+local lockButton = Instance.new("TextButton")
+lockButton.Size = UDim2.new(1, -20, 0, 38)
+lockButton.Position = UDim2.fromOffset(10, 42)
+lockButton.BackgroundColor3 = Color3.fromRGB(125, 50, 220)
+lockButton.TextColor3 = Color3.new(1, 1, 1)
+lockButton.Text = "LOCK ON"
+lockButton.Font = Enum.Font.GothamBold
+lockButton.TextSize = 16
+lockButton.Parent = panel
+
+Instance.new("UICorner", lockButton).CornerRadius =
+    UDim.new(0, 9)
+
+local strengthLabel = Instance.new("TextLabel")
+strengthLabel.Size = UDim2.new(1, -20, 0, 25)
+strengthLabel.Position = UDim2.fromOffset(10, 88)
+strengthLabel.BackgroundTransparency = 1
+strengthLabel.TextColor3 = Color3.new(1, 1, 1)
+strengthLabel.Text = "Tracking strength: 65%"
+strengthLabel.Font = Enum.Font.Gotham
+strengthLabel.TextSize = 13
+strengthLabel.Parent = panel
+
+-- Slider background
+local slider = Instance.new("Frame")
+slider.Size = UDim2.new(1, -30, 0, 12)
+slider.Position = UDim2.fromOffset(15, 120)
+slider.BackgroundColor3 = Color3.fromRGB(65, 55, 80)
+slider.Parent = panel
+
+Instance.new("UICorner", slider).CornerRadius =
+    UDim.new(1, 0)
+
+local fill = Instance.new("Frame")
+fill.Size = UDim2.new(0.65, 0, 1, 0)
+fill.BackgroundColor3 = Color3.fromRGB(175, 95, 255)
+fill.Parent = slider
+
+Instance.new("UICorner", fill).CornerRadius =
+    UDim.new(1, 0)
+
+local knob = Instance.new("TextButton")
+knob.Size = UDim2.fromOffset(24, 24)
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new(0.65, 0, 0.5, 0)
+knob.BackgroundColor3 = Color3.new(1, 1, 1)
+knob.Text = ""
+knob.Parent = slider
+
+Instance.new("UICorner", knob).CornerRadius =
+    UDim.new(1, 0)
+
+local function setStrength(value)
+    trackingStrength = math.clamp(value, 10, 100)
+
+    local percent = trackingStrength / 100
+    fill.Size = UDim2.new(percent, 0, 1, 0)
+    knob.Position = UDim2.new(percent, 0, 0.5, 0)
+
+    strengthLabel.Text =
+        "Tracking strength: " .. trackingStrength .. "%"
+end
+
+local dragging = false
+
+local function updateSlider(input)
+    local percent = (input.Position.X - slider.AbsolutePosition.X)
+        / slider.AbsoluteSize.X
+
+    setStrength(10 + math.clamp(percent, 0, 1) * 90)
+end
+
+knob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        updateSlider(input)
+    end
+end)
+
+slider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        updateSlider(input)
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and (
+        input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseMovement
+    ) then
+        updateSlider(input)
+    end
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+local function getClosestTarget(excluded)
+    local myCharacter = player.Character
+    local myRoot = myCharacter
+        and myCharacter:FindFirstChild("HumanoidRootPart")
+
+    if not myRoot then return nil end
+
+    local best, bestDistance = nil, math.huge
+
+    for _, other in ipairs(Players:GetPlayers()) do
+        if other ~= player and other ~= excluded then
+            local character = other.Character
+            local root = character
+                and character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character
+                and character:FindFirstChildOfClass("Humanoid")
+
+            if root and humanoid and humanoid.Health > 0 then
+                local distance = (root.Position - myRoot.Position).Magnitude
+
+                if distance < bestDistance then
+                    best = other
+                    bestDistance = distance
+                end
+            end
+        end
+    end
+
+    return best
+end
+
+local function unlock()
+    lockEnabled = false
+    lockedTarget = nil
+    switchDelay = 0
+
+    lockButton.Text = "LOCK ON"
+    lockButton.BackgroundColor3 = Color3.fromRGB(125, 50, 220)
+end
+
+lockButton.Activated:Connect(function()
+    if lockEnabled then
+        unlock()
+        return
+    end
+
+    lockedTarget = getClosestTarget()
+
+    if not lockedTarget then
+        lockButton.Text = "NO TARGET"
+        task.delay(1, function()
+            if not lockEnabled and lockButton.Parent then
+                lockButton.Text = "LOCK ON"
+            end
+        end)
+        return
+    end
+
+    lockEnabled = true
+    lockButton.Text = "UNLOCK"
+    lockButton.BackgroundColor3 = Color3.fromRGB(55, 160, 100)
+end)
+
+RunService:UnbindFromRenderStep(BIND_NAME)
+
+RunService:BindToRenderStep(
+    BIND_NAME,
+    Enum.RenderPriority.Camera.Value + 1,
+    function(dt)
+        if not lockEnabled then return end
+
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+
+        local character = lockedTarget and lockedTarget.Character
+        local root = character
+            and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character
+            and character:FindFirstChildOfClass("Humanoid")
+
+        if not lockedTarget
+            or not lockedTarget:IsDescendantOf(Players)
+            or not root
+            or not humanoid
+            or humanoid.Health <= 0 then
+
+            switchDelay += dt
+
+            if switchDelay >= SWITCH_COOLDOWN then
+                switchDelay = 0
+                lockedTarget = getClosestTarget(lockedTarget)
+
+                if not lockedTarget then
+                    lockedTarget = getClosestTarget()
+                end
+
+                if not lockedTarget then
+                    unlock()
+                    return
+                end
+            end
+
+            return
+        end
+
+        switchDelay = 0
+
+        local targetPosition =
+            root.Position + Vector3.new(0, 1.5, 0)
+
+        local desired = CFrame.lookAt(
+            camera.CFrame.Position,
+            targetPosition
+        )
+
+        -- Higher strength means faster camera tracking.
+        local response = trackingStrength / 100 * 18
+        local alpha = 1 - math.exp(-response * dt)
+
+        camera.CFrame = camera.CFrame:Lerp(desired, alpha)
+    end
+)
+
+player.CharacterAdded:Connect(unlock)
+
+script.Destroying:Connect(function()
+    RunService:UnbindFromRenderStep(BIND_NAME)
+end)
